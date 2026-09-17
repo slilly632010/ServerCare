@@ -17,7 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-GEMINI_API_KEY = "AQ.Ab8RN6It1jMTZv6tHlFCMgDK5VZfhMI5pw2AYxssLuYNmrN5Iw"
+GEMINI_API_KEY = os.getenv("AQ.Ab8RN6It1jMTZv6tHlFCMgDK5VZfhMI5pw2AYxssLuYNmrN5Iw")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 class LogRequest(BaseModel):
@@ -71,4 +71,4 @@ def analyze_log(data: LogRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
