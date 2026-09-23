@@ -2,8 +2,14 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Activity, Cpu, HardDrive, Wrench, CheckCircle } from 'lucide-react';
 
-// Unga Render backend live URL-a inga define pannikonga
-const BACKEND_URL = "https://servercare-backend.onrender.com";
+// Live localtunnel URL with HTTPS
+const BACKEND_URL = "https://ten-parks-heal.loca.lt";
+
+// Localtunnel warning page-a bypass panna required headers
+const tunnelHeaders = {
+  'Bypass-Tunnel-Reminder': 'true',
+  'Content-Type': 'application/json'
+};
 
 function App() {
   const [metrics, setMetrics] = useState({ 
@@ -19,8 +25,9 @@ function App() {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        // Line 22: Localhost-ku badhila Render URL
-        const res = await axios.get(`${BACKEND_URL}/api/metrics`);
+        const res = await axios.get(`${BACKEND_URL}/api/metrics`, {
+          headers: tunnelHeaders
+        });
         if (res.data) {
           setMetrics({
             cpu: res.data.cpu ?? res.data.cpu_percent ?? 0,
@@ -46,14 +53,15 @@ function App() {
     setAiResponse(null);
     
     try {
-      // Example in fetch / axios call:
-const res = await fetch("https://ten-parks-heal.loca.lt/api/analyze-log", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ log_text: logInput })
-});
+      const response = await fetch(`${BACKEND_URL}/api/analyze-log`, {
+        method: "POST",
+        headers: tunnelHeaders,
+        body: JSON.stringify({ log_text: logInput })
+      });
 
-      let parsedData = res.data.analysis;
+      const resData = await response.json();
+
+      let parsedData = resData.analysis;
       if (typeof parsedData === 'string') {
         try {
           parsedData = JSON.parse(parsedData);
@@ -65,7 +73,7 @@ const res = await fetch("https://ten-parks-heal.loca.lt/api/analyze-log", {
       setAiResponse(parsedData);
     } catch (err) {
       console.error("AI Analysis Error:", err);
-      alert("AI Analysis Error: Backend Connection or API Key problem!");
+      alert("AI Analysis Error: Backend Connection Failed!");
     } finally {
       setLoading(false);
     }
