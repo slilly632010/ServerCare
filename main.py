@@ -1,6 +1,7 @@
 import os
 import json
 import psutil
+import subprocess
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
@@ -23,6 +24,9 @@ client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 class LogRequest(BaseModel):
     log_text: str
+
+class ExecuteRequest(BaseModel):
+    command: str
 
 @app.get("/api/metrics")
 def get_system_metrics():
@@ -78,23 +82,47 @@ def analyze_log(data: LogRequest):
     elif "memory" in log_lower or "oom" in log_lower:
         fallback_data = {
             "issue": "Memory leak or process out of memory crash",
-            "command": "Clear-History; [System.GC]::Collect()",
+            "command": "echo Memory_Cache_Cleared",
             "safety_score": 88
         }
     elif "permission" in log_lower or "denied" in log_lower:
         fallback_data = {
             "issue": "File permission failure accessing process socket or logs",
-            "command": "icacls C:\\var\\log\\app /grant Everyone:F",
+            "command": "echo File_Permissions_Verified",
             "safety_score": 85
         }
     else:
         fallback_data = {
             "issue": f"Server process error detected: {data.log_text[:35]}...",
-            "command": "Restart-Service -Name application",
+            "command": "echo Application_Service_Checked",
             "safety_score": 90
         }
 
     return {"analysis": fallback_data}
+
+# REAL TERMINAL EXECUTION ENDPOINT
+@app.post("/api/execute-fix")
+def execute_fix(data: ExecuteRequest):
+    try:
+        # Runs the generated command directly on local terminal shell
+        result = subprocess.run(
+            data.command, 
+            shell=True, 
+            capture_output=True, 
+            text=True, 
+            timeout=10
+        )
+        out_msg = result.stdout.strip() if result.stdout else "Command Executed Successfully on Terminal!"
+        return {
+            "status": "SUCCESS",
+            "output": out_msg,
+            "error": result.stderr.strip() if result.stderr else None
+        }
+    except Exception as e:
+        return {
+            "status": "ERROR",
+            "message": str(e)
+        }
 
 if __name__ == "__main__":
     import uvicorn

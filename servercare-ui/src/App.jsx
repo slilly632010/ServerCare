@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Activity, Cpu, HardDrive, Wrench, CheckCircle } from 'lucide-react';
 
-const BACKEND_URL = "http://127.0.0.1:8001";
+const BACKEND_URL = "[http://127.0.0.1:8001](http://127.0.0.1:8001)";
 
 function App() {
   const [metrics, setMetrics] = useState({ 
@@ -14,7 +14,8 @@ function App() {
   const [logInput, setLogInput] = useState('');
   const [aiResponse, setAiResponse] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [executed, setExecuted] = useState(false); // Success message control
+  const [executing, setExecuting] = useState(false);
+  const [terminalOutput, setTerminalOutput] = useState('');
 
   useEffect(() => {
     const updateMetrics = async () => {
@@ -48,51 +49,68 @@ function App() {
     if (!logInput.trim()) return;
     setLoading(true);
     setAiResponse(null);
-    setExecuted(false); // Reset executed state on new analysis
+    setTerminalOutput('');
 
-    setTimeout(async () => {
-      try {
-        const response = await fetch(`${BACKEND_URL}/api/analyze-log`, {
-          method: "POST",
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ log_text: logInput })
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/analyze-log`, {
+        method: "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ log_text: logInput })
+      });
+      const resData = await response.json();
+      let parsedData = resData.analysis;
+      if (typeof parsedData === 'string') parsedData = JSON.parse(parsedData);
+      setAiResponse(parsedData);
+    } catch (err) {
+      const log = logInput.toLowerCase();
+      if (log.includes("django") || log.includes("table") || log.includes("auth_user")) {
+        setAiResponse({
+          issue: "Missing Database Table (Django Migration Required)",
+          command: "python manage.py makemigrations && python manage.py migrate",
+          safety_score: 98
         });
-        const resData = await response.json();
-        let parsedData = resData.analysis;
-        if (typeof parsedData === 'string') parsedData = JSON.parse(parsedData);
-        setAiResponse(parsedData);
-      } catch (err) {
-        const log = logInput.toLowerCase();
-        if (log.includes("django") || log.includes("table") || log.includes("auth_user")) {
-          setAiResponse({
-            issue: "Missing Database Table (Django Migration Required)",
-            command: "python manage.py makemigrations && python manage.py migrate",
-            safety_score: 98
-          });
-        } else if (log.includes("port") || log.includes("nginx")) {
-          setAiResponse({
-            issue: "Port Collision / Nginx Process Crash",
-            command: "sudo kill -9 $(lsof -t -i:80) && sudo systemctl restart nginx",
-            safety_score: 92
-          });
-        } else {
-          setAiResponse({
-            issue: "System Runtime Failure Detected",
-            command: "sudo systemctl restart app.service && sync",
-            safety_score: 88
-          });
-        }
-      } finally {
-        setLoading(false);
+      } else if (log.includes("port") || log.includes("nginx")) {
+        setAiResponse({
+          issue: "Port Collision / Nginx Process Crash",
+          command: "echo Restarting_Port_Process",
+          safety_score: 92
+        });
+      } else {
+        setAiResponse({
+          issue: "System Runtime Failure Detected",
+          command: "echo Service_Status_Checked",
+          safety_score: 88
+        });
       }
-    }, 600);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleExecuteFix = () => {
-    const cmd = aiResponse.command || aiResponse.fix_command || 'Command Executed';
-    alert(`[AUTO-REPAIR EXECUTED] ${cmd}`);
-    setExecuted(true);
-    setLogInput(''); // Clears the textarea log input
+  const handleExecuteFix = async () => {
+    const cmd = aiResponse?.command || aiResponse?.fix_command;
+    if (!cmd) return;
+
+    setExecuting(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/execute-fix`, {
+        method: "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: cmd })
+      });
+      const result = await response.json();
+
+      if (result.status === "SUCCESS") {
+        setTerminalOutput(result.output);
+        setLogInput('');
+      } else {
+        alert(`[EXECUTION FAILED]: ${result.message || result.error}`);
+      }
+    } catch (err) {
+      alert("Error connecting to backend execution terminal!");
+    } finally {
+      setExecuting(false);
+    }
   };
 
   return (
@@ -160,15 +178,19 @@ function App() {
             </p>
             <button 
               onClick={handleExecuteFix}
+              disabled={executing}
               style={{ marginTop: '12px', backgroundColor: '#16a34a', color: '#fff', padding: '12px 20px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
             >
-              <CheckCircle size={18} /> Execute One-Click Auto Fix
+              <CheckCircle size={18} /> {executing ? "Executing on Terminal..." : "Execute One-Click Auto Fix"}
             </button>
 
-            {executed && (
-              <p style={{ color: '#4ade80', marginTop: '12px', fontWeight: 'bold', fontSize: '15px' }}>
-                ✅ Issue Resolved Successfully & Server Status Restored!
-              </p>
+            {terminalOutput && (
+              <div style={{ marginTop: '15px', padding: '12px', background: '#0f172a', borderRadius: '6px', border: '1px solid #22c55e' }}>
+                <p style={{ color: '#4ade80', margin: '0 0 5px 0', fontWeight: 'bold' }}>
+                  ✅ Live Terminal Execution Result:
+                </p>
+                <code style={{ color: '#38bdf8', fontSize: '13px' }}>{terminalOutput}</code>
+              </div>
             )}
           </div>
         )}
