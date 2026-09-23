@@ -46,8 +46,12 @@ function App() {
     setAiResponse(null);
     
     try {
-      // Line 44: Localhost-ku badhila Render URL
-      const res = await axios.post(`${BACKEND_URL}/api/analyze-log`, { log_text: logInput });
+      // Example in fetch / axios call:
+const res = await fetch("https://ten-parks-heal.loca.lt/api/analyze-log", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ log_text: logInput })
+});
 
       let parsedData = res.data.analysis;
       if (typeof parsedData === 'string') {
