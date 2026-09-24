@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Activity, Cpu, HardDrive, Wrench, CheckCircle } from 'lucide-react';
 
-const BACKEND_URL = "[http://127.0.0.1:8001](http://127.0.0.1:8001)";
+const BACKEND_URL = "https://servercare.onrender.com";
 
 function App() {
   const [metrics, setMetrics] = useState({ 
@@ -20,7 +20,7 @@ function App() {
   useEffect(() => {
     const updateMetrics = async () => {
       try {
-        const res = await axios.get(`${BACKEND_URL}/api/metrics`, { timeout: 1500 });
+        const res = await axios.get(`${BACKEND_URL}/api/metrics`, { timeout: 3000 });
         if (res.data) {
           setMetrics({
             cpu: res.data.cpu ?? res.data.cpu_percent ?? 24.8,

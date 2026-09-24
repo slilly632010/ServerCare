@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
-# Frontend Connect ஆக அனுமதித்தல்
+# Frontend Connect 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,7 +30,6 @@ class ExecuteRequest(BaseModel):
 
 @app.get("/api/metrics")
 def get_system_metrics():
-    # interval=0.1 கொடுத்தால் மட்டுமே உடனடி CPU usage துல்லியமாக கிடைக்கும்
     cpu_usage = round(psutil.cpu_percent(interval=0.1))
     memory_info = round(psutil.virtual_memory().percent)
     disk_info = round(psutil.disk_usage('/').percent)
@@ -64,7 +63,7 @@ def analyze_log(data: LogRequest):
             Do NOT wrap in markdown code blocks like ```json. Return ONLY raw JSON string.
             """
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-1.5-flash',
                 contents=prompt
             )
             clean_text = response.text.replace("```json", "").replace("```", "").strip()
@@ -72,7 +71,7 @@ def analyze_log(data: LogRequest):
         except Exception as e:
             print("Gemini API Error, using dynamic fallback:", e)
 
-    # 2. Dynamic Rule-based Fallback (Windows-Friendly Commands)
+    # 2. Dynamic Rule-based Fallback
     if "django" in log_lower or "operationalerror" in log_lower or "no such table" in log_lower:
         fallback_data = {
             "issue": "Missing Database Tables / Unapplied Django Migrations",
@@ -104,7 +103,6 @@ def analyze_log(data: LogRequest):
 @app.post("/api/execute-fix")
 def execute_fix(data: ExecuteRequest):
     try:
-        # Runs the generated command directly on local terminal shell
         result = subprocess.run(
             data.command, 
             shell=True, 
@@ -126,4 +124,5 @@ def execute_fix(data: ExecuteRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8001, reload=True)
+    port = int(os.getenv("PORT", 8001))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
