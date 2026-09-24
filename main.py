@@ -8,6 +8,9 @@ from google import genai
 from pydantic import BaseModel
 
 app = FastAPI()
+@app.get("/")
+def read_root():
+    return {"message": "ServerCare FastAPI Backend is Running Successfully!"}
 
 # Frontend Connect 
 app.add_middleware(
