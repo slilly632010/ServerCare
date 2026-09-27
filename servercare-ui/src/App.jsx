@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Activity, Cpu, HardDrive, Wrench, CheckCircle, Globe, Terminal, ExternalLink, Settings, WifiOff, AlertTriangle } from 'lucide-react';
+import { Activity, Cpu, HardDrive, Wrench, CheckCircle, Globe, Terminal, ExternalLink, Settings, WifiOff } from 'lucide-react';
 
 const BACKEND_URL = "https://servercare.onrender.com";
 
@@ -41,45 +41,44 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Deep Target Resolver Engine: Path, OS Settings, Website & Deep Line Numbers
+  // Deep Target Resolver Engine
   const extractTargetFromLog = (text) => {
     const lower = text.toLowerCase();
 
-    // 1. NETWORK / DISCONNECTION ERRORS
+    // 1. Network / Disconnection Errors
     if (lower.includes("network_error") || lower.includes("net::err") || lower.includes("dns_probe") || lower.includes("offline") || lower.includes("no internet")) {
       return { 
         url: "ms-settings:network", 
         type: "network_error", 
-        name: "Windows Network & Internet Settings",
-        icon: "network" 
+        name: "Windows Network & Internet Settings"
       };
     }
 
-    // 2. WINDOWS OS SETTINGS ERRORS
+    // 2. Windows OS Settings Errors
     if (lower.includes("display") || lower.includes("resolution") || lower.includes("graphics")) {
-      return { url: "ms-settings:display", type: "os_settings", name: "System Display Settings", icon: "settings" };
+      return { url: "ms-settings:display", type: "os_settings", name: "System Display Settings" };
     }
     if (lower.includes("sound") || lower.includes("audio")) {
-      return { url: "ms-settings:sound", type: "os_settings", name: "System Audio Settings", icon: "settings" };
+      return { url: "ms-settings:sound", type: "os_settings", name: "System Audio Settings" };
     }
     if (lower.includes("bluetooth") || lower.includes("device")) {
-      return { url: "ms-settings:bluetooth", type: "os_settings", name: "Bluetooth & Devices Settings", icon: "settings" };
+      return { url: "ms-settings:bluetooth", type: "os_settings", name: "Bluetooth & Devices Settings" };
     }
 
-    // 3. SPECIFIC WEB APPLICATION / URL MATCH
+    // 3. Web URL Match
     const urlMatch = text.match(/https?:\/\/[^\s"'<>]+/i);
     if (urlMatch) {
-      return { url: urlMatch[0], type: "web", name: `Web App Target (${new URL(urlMatch[0]).hostname})`, icon: "web" };
+      return { url: urlMatch[0], type: "web", name: `Web App Target (${new URL(urlMatch[0]).hostname})` };
     }
 
-    // 4. LOCALHOST PORT ERRORS (e.g., port 3000, 5173, 8080)
+    // 4. Localhost Port Match
     const portMatch = text.match(/port\s*(\d+)|:\s*(\d{4,5})/i);
     if (portMatch) {
       const port = portMatch[1] || portMatch[2] || "5173";
-      return { url: `http://localhost:${port}`, type: "web", name: `Local Web Engine (Port ${port})`, icon: "web" };
+      return { url: `http://localhost:${port}`, type: "web", name: `Local Web Engine (Port ${port})` };
     }
 
-    // 5. VS CODE SPECIFIC FILE & LINE NUMBER (e.g. src/App.jsx:42 or D:/Project/main.py:10)
+    // 5. VS Code File & Line Number (e.g., src/App.jsx:42)
     const fileLineMatch = text.match(/([a-zA-Z]:[\\\/][^:\s]+|src\/[^\s:]+):(\d+)/i);
     if (fileLineMatch) {
       const filePath = fileLineMatch[1];
@@ -87,19 +86,17 @@ function App() {
       return { 
         url: `vscode://file/${filePath}:${lineNum}`, 
         type: "vscode_file", 
-        name: `VS Code -> ${filePath.split(/[\/\\]/).pop()} (Line ${lineNum})`, 
-        icon: "code" 
+        name: `VS Code -> ${filePath.split(/[\/\\]/).pop()} (Line ${lineNum})`
       };
     }
 
-    // Default Fallback: General VS Code Workspace
-    return { url: "vscode://", type: "vscode", name: "VS Code App Workspace", icon: "code" };
+    // Default Fallback: VS Code
+    return { url: "vscode://", type: "vscode", name: "VS Code App Workspace" };
   };
 
   const handleAnalyzeLog = async () => {
     if (!logInput.trim()) return;
 
-    // Check Network Connection First
     if (!navigator.onLine) {
       setNetworkAlert("⚠️ Local Device is Offline! Please check your network connection.");
     } else {
@@ -133,7 +130,7 @@ function App() {
         target_app: detectedTarget.name,
         target_type: detectedTarget.type,
         issue: detectedTarget.type === "network_error" ? "Network Interface Connection Loss" : "Application Execution Error Detected",
-        command: detectedTarget.type === "network_error" ? "netsh interface set interface name='Wi-Fi' admin=enabled" : "echo Auto_Fix_Applied",
+        command: detectedTarget.type === "network_error" ? "netsh interface set interface name='Wi-Fi' admin=enabled" : "python manage.py makemigrations && python manage.py migrate",
         safety_score: 98,
         launch_target: detectedTarget.url
       });
@@ -143,7 +140,6 @@ function App() {
   };
 
   const handleExecuteFix = async () => {
-    // If Network issue detected
     if (aiResponse?.target_type === "network_error" && !navigator.onLine) {
       alert("❌ Cannot execute online fix while network is down! Opening OS Network Settings...");
       window.location.href = "ms-settings:network";
@@ -164,12 +160,33 @@ function App() {
           pid: Math.floor(1000 + Math.random() * 8000),
           environment: "OS Native Subprocess Shell",
           execution_time_sec: 0.11,
-          output: "Target Incident Cleared & Service State Restored"
+          output: `Command executed: [${cmd}]\nStatus: Operations completed successfully.`
         });
         setIsFixed(true);
       }, 1000);
     } finally {
       setExecuting(false);
+    }
+  };
+
+  // Smart Protocol & URL Launcher
+  const handleOpenRecoveredApp = () => {
+    const target = aiResponse?.launch_target || "vscode://";
+    
+    if (target.startsWith("http")) {
+      window.open(target, "_blank", "noopener,noreferrer");
+    } else {
+      // Netlify / HTTPS protocol trigger fix
+      const iframe = document.createElement("iframe");
+      iframe.style.display = "none";
+      iframe.src = target;
+      document.body.appendChild(iframe);
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 2000);
+      
+      // Fallback location trigger
+      window.location.href = target;
     }
   };
 
@@ -216,7 +233,7 @@ function App() {
           rows="4" 
           value={logInput} 
           onChange={(e) => setLogInput(e.target.value)}
-          placeholder="e.g., Error at src/App.jsx:42 OR Display resolution error OR NET::ERR_INTERNET_DISCONNECTED"
+          placeholder="e.g., Error at src/App.jsx:42 OR Display resolution error OR http://localhost:5173"
           style={{ width: '98%', padding: '12px', borderRadius: '8px', background: '#0f172a', color: '#38bdf8', border: '1px solid #475569', fontSize: '14px', fontFamily: 'monospace' }}
         />
         <br />
@@ -265,32 +282,31 @@ function App() {
                   <p style={{ color: '#94a3b8', fontSize: '12px', margin: '0 0 8px 0' }}>
                     🚀 Direct Action — Relaunch Specific Target App/Page:
                   </p>
-                  
+
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
                     
-                    {/* SMART DYNAMIC ANCHOR LAUNCHER */}
-                    <a 
-                      href={aiResponse?.launch_target}
-                      target={aiResponse?.target_type === "web" ? "_blank" : "_self"}
-                      rel="noopener noreferrer"
+                    {/* SMART BUTTON LAUNCHER */}
+                    <button 
+                      onClick={handleOpenRecoveredApp}
                       style={{ 
                         color: '#fff', 
-                        textDecoration: 'none', 
-                        fontWeight: 'bold', 
-                        fontSize: '13px', 
-                        display: 'inline-flex', 
-                        alignItems: 'center', 
-                        gap: '8px', 
                         backgroundColor: aiResponse?.target_type === "os_settings" || aiResponse?.target_type === "network_error" ? '#d97706' : '#0284c7', 
                         padding: '10px 18px', 
-                        borderRadius: '6px'
+                        borderRadius: '6px',
+                        border: 'none',
+                        fontWeight: 'bold',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px'
                       }}
                     >
                       {aiResponse?.target_type === "os_settings" || aiResponse?.target_type === "network_error" ? <Settings size={16} /> : (aiResponse?.target_type === "web" ? <Globe size={16} /> : <Terminal size={16} />)}
                       
                       Open Recovered Location ({aiResponse?.target_app})
                       <ExternalLink size={14} />
-                    </a>
+                    </button>
 
                     <span style={{ backgroundColor: '#065f46', color: '#34d399', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>
                       🟢 Operational & Restored
