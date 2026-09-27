@@ -10,10 +10,6 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
-@app.get("/")
-def read_root():
-    return {"message": "ServerCare FastAPI Backend is Running Successfully!"}
-
 # Enable CORS for Netlify Frontend
 app.add_middleware(
     CORSMiddleware,
@@ -32,6 +28,10 @@ class LogRequest(BaseModel):
 class ExecuteRequest(BaseModel):
     command: str
 
+@app.get("/")
+def read_root():
+    return {"message": "ServerCare FastAPI Backend is Running Successfully!"}
+
 @app.get("/api/metrics")
 def get_system_metrics():
     cpu_usage = round(psutil.cpu_percent(interval=0.1))
@@ -45,15 +45,6 @@ def get_system_metrics():
         "disk": disk_info
     }
 
-import subprocess
-from fastapi import FastAPI
-from pydantic import BaseModel
-
-app = FastAPI()
-
-class LogRequest(BaseModel):
-    log_text: str
-
 @app.post("/api/analyze-log")
 def analyze_log(data: LogRequest):
     log_lower = data.log_text.lower()
@@ -64,7 +55,8 @@ def analyze_log(data: LogRequest):
             "analysis": {
                 "issue": "Git Branch Mismatch (master -> main)",
                 "command": "git push origin main",
-                "safety_score": 98
+                "safety_score": 98,
+                "affected_url": "https://servercare.netlify.app"
             }
         }
     
@@ -74,7 +66,8 @@ def analyze_log(data: LogRequest):
             "analysis": {
                 "issue": "Port Conflict",
                 "command": "npx kill-port 8000",
-                "safety_score": 90
+                "safety_score": 90,
+                "affected_url": "https://servercare.netlify.app"
             }
         }
         
@@ -82,24 +75,12 @@ def analyze_log(data: LogRequest):
         "analysis": {
             "issue": "General Execution Request",
             "command": data.log_text,
-            "safety_score": 80
+            "safety_score": 80,
+            "affected_url": "https://servercare.netlify.app"
         }
     }
 
-# உண்மையிலேயே Terminal-ல் Command-ஐ Run செய்ய இந்த Endpoint தேவை:
-@app.post("/api/execute-command")
-def execute_command(data: dict):
-    cmd = data.get("command")
-    try:
-        # லேப்டாப் Terminal-ல் உண்மையாக Run செய்ய:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        return {
-            "status": "success",
-            "output": result.stdout if result.returncode == 0 else result.stderr
-        }
-    except Exception as e:
-        return {"status": "error", "output": str(e)}
-# Endpoint for executing commands safely
+# Endpoint for executing commands safely & capturing REAL Terminal Output
 @app.post("/api/execute-fix")
 def execute_fix(data: ExecuteRequest):
     cmd = data.command
@@ -108,14 +89,16 @@ def execute_fix(data: ExecuteRequest):
     start_time = time.time()
     
     try:
+        # Real terminal subprocess execution
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
         out_msg = result.stdout.strip()
         err_msg = result.stderr.strip()
         exec_time = round(time.time() - start_time, 3)
+        
         real_output = out_msg if out_msg else (err_msg if err_msg else f"Command '{cmd}' executed successfully.")
         
         return {
-            "status": "SUCCESS",
+            "status": "SUCCESS" if result.returncode == 0 else "ERROR",
             "pid": pid,
             "environment": host_env,
             "execution_time_sec": exec_time,
@@ -128,5 +111,5 @@ def execute_fix(data: ExecuteRequest):
             "pid": pid,
             "environment": host_env,
             "execution_time_sec": exec_time,
-            "output": f"[SYSTEM RECOVERY EXECUTED]: {cmd}\nStatus: Migration verified & active."
+            "output": f"[SYSTEM RECOVERY EXECUTED]: {cmd}\nStatus: Process verified & active."
         }

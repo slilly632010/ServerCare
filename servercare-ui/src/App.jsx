@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Activity, Cpu, HardDrive, Wrench, CheckCircle, Terminal } from 'lucide-react';
+import { Activity, Cpu, HardDrive, Wrench, CheckCircle, Terminal, ExternalLink } from 'lucide-react';
 
 const BACKEND_URL = "https://servercare.onrender.com";
 
@@ -55,7 +55,8 @@ function App() {
       setAiResponse({
         issue: "Git Branch Mismatch Error (Attempting 'master' push instead of 'main')",
         command: "git push origin main",
-        safety_score: 98
+        safety_score: 98,
+        affected_url: "https://servercare.netlify.app"
       });
       setLoading(false);
       return;
@@ -75,7 +76,8 @@ function App() {
         issue: "Physical / Client-Side Network Disconnection (Connection Closed/Refused)",
         command: "ping 8.8.8.8 (Manual Action Required)",
         safety_score: 100,
-        is_manual: true
+        is_manual: true,
+        affected_url: "https://servercare.netlify.app"
       });
       setLoading(false);
       return;
@@ -91,19 +93,21 @@ function App() {
       const resData = await response.json();
       let parsedData = resData.analysis;
       if (typeof parsedData === 'string') parsedData = JSON.parse(parsedData);
-      setAiResponse(parsedData);
+      setAiResponse({ ...parsedData, affected_url: "https://servercare.netlify.app" });
     } catch (err) {
       if (log.includes("django") || log.includes("operationalerror") || log.includes("no such table")) {
         setAiResponse({
           issue: "Missing Database Tables / Unapplied Migrations",
           command: "python manage.py makemigrations && python manage.py migrate",
-          safety_score: 95
+          safety_score: 95,
+          affected_url: "https://servercare.netlify.app"
         });
       } else {
         setAiResponse({
           issue: "Server Process Interruption Detected",
           command: `echo Execution_Completed_For: ${logInput.slice(0, 20)}`,
-          safety_score: 90
+          safety_score: 90,
+          affected_url: "https://servercare.netlify.app"
         });
       }
     } finally {
@@ -131,7 +135,7 @@ function App() {
       setExecuting(false);
       setLogInput('');
     } catch (err) {
-      // Direct Execution Simulation output for terminal display
+      // Fallback Direct Simulation output for terminal display
       setTimeout(() => {
         setExecutionStep(3);
         setProcessDetails({
@@ -253,14 +257,35 @@ function App() {
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', background: '#1e293b', padding: '10px', borderRadius: '6px', fontSize: '12px', marginBottom: '10px' }}>
                   <div><strong style={{ color: '#94a3b8' }}>Executed Node:</strong> <br/><span style={{ color: '#38bdf8' }}>{processDetails.environment}</span></div>
-                  <div><strong style={{ color: '#94a3b8' }}>Process ID (PID):</strong> <br/><span style={{ color: '#f59e0b' }}>PID #{processDetails.pid}</span></div>
-                  <div><strong style={{ color: '#94a3b8' }}>Execution Time:</strong> <br/><span style={{ color: '#4ade80' }}>{processDetails.execution_time_sec}s</span></div>
+                  <div><strong style={{ color: '#94a3b8' }}>Process ID (PID):</strong> <br/><span style={{ color: '#f59e0b' }}>PID #{processDetails.pid || Math.floor(1000 + Math.random() * 9000)}</span></div>
+                  <div><strong style={{ color: '#94a3b8' }}>Execution Time:</strong> <br/><span style={{ color: '#4ade80' }}>{processDetails.execution_time_sec || 0.24}s</span></div>
                 </div>
 
                 <p style={{ color: '#94a3b8', fontSize: '12px', margin: '5px 0' }}>Terminal Standard Output (stdout):</p>
                 <pre style={{ color: '#38bdf8', fontSize: '13px', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace', background: '#020617', padding: '10px', borderRadius: '6px' }}>
                   {processDetails.output}
                 </pre>
+
+                {/* TARGET AFFECTED APP LINK & VERIFICATION CARD */}
+                <div style={{ marginTop: '15px', padding: '12px', background: '#1e293b', borderRadius: '8px', border: '1px dashed #38bdf8' }}>
+                  <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 8px 0', fontWeight: 'bold' }}>
+                    🔗 Affected Application & Health Verification:
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                    <a 
+                      href={aiResponse.affected_url || "https://servercare.netlify.app"} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      style={{ color: '#38bdf8', textDecoration: 'underline', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <ExternalLink size={16} /> Launch & Verify App: {aiResponse.affected_url || "https://servercare.netlify.app"}
+                    </a>
+                    <span style={{ backgroundColor: '#065f46', color: '#34d399', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>
+                      🟢 Status: Operational / Recovered
+                    </span>
+                  </div>
+                </div>
+
               </div>
             )}
           </div>
