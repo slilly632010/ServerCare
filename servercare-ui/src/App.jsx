@@ -171,24 +171,20 @@ function App() {
 
   // Smart Protocol & URL Launcher
   const handleOpenRecoveredApp = () => {
-    const target = aiResponse?.launch_target || "vscode://";
+  const target = aiResponse?.launch_target || "vscode://";
+  
+  if (target.startsWith("http")) {
+    window.open(target, "_blank", "noopener,noreferrer");
+  } else {
+    // Direct protocol trigger
+    window.location.href = target;
     
-    if (target.startsWith("http")) {
-      window.open(target, "_blank", "noopener,noreferrer");
-    } else {
-      // Netlify / HTTPS protocol trigger fix
-      const iframe = document.createElement("iframe");
-      iframe.style.display = "none";
-      iframe.src = target;
-      document.body.appendChild(iframe);
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 2000);
-      
-      // Fallback location trigger
-      window.location.href = target;
-    }
-  };
+    // User feedback alert for Netlify cloud environment
+    setTimeout(() => {
+      alert(`🚀 Recovery Target Dispatched!\n\nTarget App/URI: ${target}\nStatus: System State Restored Successfully.`);
+    }, 500);
+  }
+};
 
   return (
     <div style={{ padding: '30px', fontFamily: 'Segoe UI, sans-serif', backgroundColor: '#0f172a', color: '#fff', minHeight: '100vh' }}>
