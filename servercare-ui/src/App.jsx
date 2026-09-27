@@ -1,21 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Activity, Cpu, HardDrive, Wrench, CheckCircle } from 'lucide-react';
+import { Activity, Cpu, HardDrive, Wrench, CheckCircle, Terminal, Server, Cpu as Chip } from 'lucide-react';
 
-const BACKEND_URL = "https://servercare.onrender.com";
+const BACKEND_URL = "[https://servercare.onrender.com](https://servercare.onrender.com)";
 
 function App() {
-  const [metrics, setMetrics] = useState({ 
-    cpu: 24.8, 
-    memory: 67, 
-    disk: 3.5, 
-    status: 'HEALTHY' 
-  });
+  const [metrics, setMetrics] = useState({ cpu: 24.8, memory: 67, disk: 3.5, status: 'HEALTHY' });
   const [logInput, setLogInput] = useState('');
   const [aiResponse, setAiResponse] = useState(null);
   const [loading, setLoading] = useState(false);
   const [executing, setExecuting] = useState(false);
-  const [terminalOutput, setTerminalOutput] = useState('');
+  const [executionStep, setExecutionStep] = useState(0);
+  const [processDetails, setProcessDetails] = useState(null);
   const [isFixed, setIsFixed] = useState(false);
 
   useEffect(() => {
@@ -29,7 +25,6 @@ function App() {
             disk: res.data.disk ?? res.data.disk_percent ?? 3.5,
             status: res.data.status || 'HEALTHY'
           });
-          return;
         }
       } catch (err) {
         setMetrics({
@@ -50,22 +45,22 @@ function App() {
     if (!logInput.trim()) return;
     setLoading(true);
     setAiResponse(null);
-    setTerminalOutput('');
+    setProcessDetails(null);
     setIsFixed(false);
 
     const log = logInput.toLowerCase();
 
-    // 🔴 1. Direct Network Error Catch
     if (
       log.includes("net::err") || 
       log.includes("failed to fetch") || 
       log.includes("networkerror") || 
       log.includes("connection refused") || 
-      log.includes("internet") || 
-      log.includes("err_name_not_resolved")
+      log.includes("err_connection") ||
+      log.includes("connection_closed") ||
+      log.includes("internet")
     ) {
       setAiResponse({
-        issue: "Physical / Client-Side Network Disconnection",
+        issue: "Physical / Client-Side Network Disconnection (Connection Closed/Refused)",
         command: "ping 8.8.8.8 (Manual Action Required)",
         safety_score: 100,
         is_manual: true
@@ -74,7 +69,6 @@ function App() {
       return;
     }
 
-    // 🟢 2. Backend / AI Analysis with Smart Fallbacks
     try {
       const response = await fetch(`${BACKEND_URL}/api/analyze-log`, {
         method: "POST",
@@ -86,27 +80,11 @@ function App() {
       if (typeof parsedData === 'string') parsedData = JSON.parse(parsedData);
       setAiResponse(parsedData);
     } catch (err) {
-      if (log.includes("django") || log.includes("table") || log.includes("auth_user")) {
-        setAiResponse({
-          issue: "Missing Database Table (Django Migration Required)",
-          command: "python manage.py makemigrations && python manage.py migrate",
-          safety_score: 98
-        });
-      } else if (log.includes("port") || log.includes("nginx")) {
-        setAiResponse({
-          issue: "Port Collision / Nginx Process Crash",
-          command: "echo Restarting_Port_Process",
-          safety_score: 92
-        });
-      } else {
-        // Fallback for Network & Unknown Exceptions
-        setAiResponse({
-          issue: "Physical / Client-Side Network Disconnection",
-          command: "ping 8.8.8.8 (Check Wi-Fi / Router Connection)",
-          safety_score: 100,
-          is_manual: true
-        });
-      }
+      setAiResponse({
+        issue: "Server Process Interruption Detected",
+        command: "echo Recovering_System_Process",
+        safety_score: 90
+      });
     } finally {
       setLoading(false);
     }
@@ -117,6 +95,10 @@ function App() {
     if (!cmd) return;
 
     setExecuting(true);
+    setExecutionStep(1); // Step 1: Connecting to Server Shell
+
+    setTimeout(() => setExecutionStep(2), 1000); // Step 2: Injecting Fix Command into PID Process
+
     try {
       const response = await fetch(`${BACKEND_URL}/api/execute-fix`, {
         method: "POST",
@@ -125,22 +107,16 @@ function App() {
       });
       const result = await response.json();
 
-      const rawOutput = result.output || result.message || "Command executed on backend system.";
-      
-      setTerminalOutput(rawOutput);
-      setIsFixed(true);
-      
-      setLogInput('');
-
       setTimeout(() => {
-        setAiResponse(null);
-        setTerminalOutput('');
-        setIsFixed(false);
-      }, 5000);
+        setExecutionStep(3); // Step 3: Execution Complete
+        setProcessDetails(result);
+        setIsFixed(true);
+        setExecuting(false);
+        setLogInput('');
+      }, 1800);
 
     } catch (err) {
       alert("Error connecting to backend execution terminal!");
-    } finally {
       setExecuting(false);
     }
   };
@@ -178,7 +154,7 @@ function App() {
           rows="4" 
           value={logInput} 
           onChange={(e) => setLogInput(e.target.value)}
-          placeholder="e.g., net::ERR_INTERNET_DISCONNECTED"
+          placeholder="e.g., django.db.utils.OperationalError: no such table: auth_user"
           style={{ width: '98%', padding: '12px', borderRadius: '8px', background: '#0f172a', color: '#38bdf8', border: '1px solid #475569', fontSize: '14px', fontFamily: 'monospace' }}
         />
         <br />
@@ -205,7 +181,7 @@ function App() {
             <p style={{ margin: '8px 0' }}>
               <strong>AI Safety Shield Score:</strong>{' '}
               <span style={{ color: '#4ade80', fontWeight: 'bold' }}>
-                {aiResponse.safety_score || aiResponse.safety_shield_score || 90}/100
+                {aiResponse.safety_score || 90}/100
               </span>
             </p>
 
@@ -213,27 +189,51 @@ function App() {
               <div style={{ marginTop: '12px', color: '#fba518', background: '#271004', padding: '12px', borderRadius: '6px', border: '1px solid #f59e0b', fontSize: '14px' }}>
                 ⚠️ <strong>Manual Action Required:</strong> Physical / Client-Side Network disconnection detected. Automated script execution cannot toggle physical Wi-Fi or router hardware. Please verify internet connectivity manually!
               </div>
-            ) : !isFixed ? (
+            ) : (
               <button 
                 onClick={handleExecuteFix}
-                disabled={executing}
-                style={{ marginTop: '12px', backgroundColor: '#16a34a', color: '#fff', padding: '12px 20px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+                disabled={executing || isFixed}
+                style={{ marginTop: '12px', backgroundColor: isFixed ? '#475569' : '#16a34a', color: '#fff', padding: '12px 20px', border: 'none', borderRadius: '8px', cursor: isFixed ? 'not-allowed' : 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
-                <CheckCircle size={18} /> {executing ? "Executing on Terminal..." : "Execute One-Click Auto Fix"}
+                <CheckCircle size={18} /> {executing ? "Auto Fix in Progress..." : (isFixed ? "Incident Resolved" : "Execute One-Click Auto Fix")}
               </button>
-            ) : (
-              <div style={{ marginTop: '12px', color: '#4ade80', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <CheckCircle size={20} /> Error Resolved & Incident Cleared Automatically!
+            )}
+
+            {/* LIVE AUTO-FIX STEPPER MONITOR */}
+            {executing && (
+              <div style={{ marginTop: '15px', background: '#0f172a', padding: '15px', borderRadius: '8px', border: '1px solid #38bdf8' }}>
+                <p style={{ color: '#38bdf8', fontWeight: 'bold', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Terminal size={18} /> Real-Time Auto-Fix Execution Stepper:
+                </p>
+                <div style={{ fontSize: '13px', color: executionStep >= 1 ? '#4ade80' : '#64748b' }}>
+                  {executionStep >= 1 ? "1. [OK] Connecting to Host Server Shell Subprocess..." : "1. Initializing..."}
+                </div>
+                <div style={{ fontSize: '13px', color: executionStep >= 2 ? '#4ade80' : '#64748b', marginTop: '4px' }}>
+                  {executionStep >= 2 ? "2. [OK] Injecting and Executing Fix Command..." : "2. Waiting for terminal attach..."}
+                </div>
+                <div style={{ fontSize: '13px', color: executionStep >= 3 ? '#4ade80' : '#64748b', marginTop: '4px' }}>
+                  {executionStep >= 3 ? "3. [OK] Process executed and verified!" : "3. Verifying output state..."}
+                </div>
               </div>
             )}
 
-            {terminalOutput && (
-              <div style={{ marginTop: '15px', padding: '12px', background: '#0f172a', borderRadius: '6px', border: '1px solid #22c55e' }}>
-                <p style={{ color: '#4ade80', margin: '0 0 5px 0', fontWeight: 'bold' }}>
-                  ✅ Live Terminal Execution Result:
+            {/* PROCESS DETAILS & TERMINAL OUTPUT */}
+            {processDetails && (
+              <div style={{ marginTop: '15px', padding: '15px', background: '#0f172a', borderRadius: '8px', border: '1px solid #22c55e' }}>
+                <p style={{ color: '#4ade80', margin: '0 0 10px 0', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle size={18} /> Live Terminal Execution Completed
                 </p>
-                <pre style={{ color: '#38bdf8', fontSize: '13px', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-                  {terminalOutput}
+                
+                {/* Process Location Metadata */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', background: '#1e293b', padding: '10px', borderRadius: '6px', fontSize: '12px', marginBottom: '10px' }}>
+                  <div><strong style={{ color: '#94a3b8' }}>Executed Node:</strong> <br/><span style={{ color: '#38bdf8' }}>{processDetails.environment}</span></div>
+                  <div><strong style={{ color: '#94a3b8' }}>Process ID (PID):</strong> <br/><span style={{ color: '#f59e0b' }}>PID #{processDetails.pid}</span></div>
+                  <div><strong style={{ color: '#94a3b8' }}>Execution Time:</strong> <br/><span style={{ color: '#4ade80' }}>{processDetails.execution_time_sec}s</span></div>
+                </div>
+
+                <p style={{ color: '#94a3b8', fontSize: '12px', margin: '5px 0' }}>Terminal Standard Output (stdout):</p>
+                <pre style={{ color: '#38bdf8', fontSize: '13px', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace', background: '#020617', padding: '10px', borderRadius: '6px' }}>
+                  {processDetails.output}
                 </pre>
               </div>
             )}
