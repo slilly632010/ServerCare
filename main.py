@@ -45,48 +45,60 @@ def get_system_metrics():
         "disk": disk_info
     }
 
+import subprocess
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class LogRequest(BaseModel):
+    log_text: str
+
 @app.post("/api/analyze-log")
 def analyze_log(data: LogRequest):
     log_lower = data.log_text.lower()
     
-    # 1. Django / Database Missing Table Errors
-    if any(k in log_lower for k in ["django", "operationalerror", "no such table", "connection refused", "database"]):
-        fallback_data = {
-            "issue": "Database Connection / Missing Tables Issue",
-            "command": "python manage.py makemigrations && python manage.py migrate",
-            "safety_score": 95
+    # 1. Git Error Fix
+    if any(k in log_lower for k in ["git", "refspec", "failed to push", "master"]):
+        return {
+            "analysis": {
+                "issue": "Git Branch Mismatch (master -> main)",
+                "command": "git push origin main",
+                "safety_score": 98
+            }
         }
-    # 2. Port Already in Use Error
-    elif any(k in log_lower for k in ["eaddrinuse", "port", "address already in use"]):
-        fallback_data = {
-            "issue": "Port Conflict Error - Target port is already occupied",
-            "command": "npx kill-port 8000",
-            "safety_score": 92
+    
+    # 2. Port Error Fix
+    elif "eaddrinuse" in log_lower or "port" in log_lower:
+        return {
+            "analysis": {
+                "issue": "Port Conflict",
+                "command": "npx kill-port 8000",
+                "safety_score": 90
+            }
         }
-    # 3. Memory / OOM Crash
-    elif any(k in log_lower for k in ["memory", "oom", "heap out of memory", "killed"]):
-        fallback_data = {
-            "issue": "High RAM / Memory Leak Detected",
-            "command": "echo Memory_Cache_Cleared",
-            "safety_score": 88
+        
+    return {
+        "analysis": {
+            "issue": "General Execution Request",
+            "command": data.log_text,
+            "safety_score": 80
         }
-    # 4. Missing Dependencies / NPM Packages
-    elif any(k in log_lower for k in ["cannot find module", "module_not_found", "no module named"]):
-        fallback_data = {
-            "issue": "Missing Dependencies or Required Libraries",
-            "command": "npm install || pip install -r requirements.txt",
-            "safety_score": 90
-        }
-    # 5. Generic Server Error Fallback
-    else:
-        fallback_data = {
-            "issue": f"Server Runtime Diagnostic: {data.log_text[:35]}...",
-            "command": "python -c \"print('System Diagnostic Completed & Service Restored')\"",
-            "safety_score": 85
-        }
+    }
 
-    return {"analysis": fallback_data}
-
+# உண்மையிலேயே Terminal-ல் Command-ஐ Run செய்ய இந்த Endpoint தேவை:
+@app.post("/api/execute-command")
+def execute_command(data: dict):
+    cmd = data.get("command")
+    try:
+        # லேப்டாப் Terminal-ல் உண்மையாக Run செய்ய:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        return {
+            "status": "success",
+            "output": result.stdout if result.returncode == 0 else result.stderr
+        }
+    except Exception as e:
+        return {"status": "error", "output": str(e)}
 # Endpoint for executing commands safely
 @app.post("/api/execute-fix")
 def execute_fix(data: ExecuteRequest):
