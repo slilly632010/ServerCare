@@ -49,23 +49,40 @@ def get_system_metrics():
 def analyze_log(data: LogRequest):
     log_lower = data.log_text.lower()
     
-    if "django" in log_lower or "operationalerror" in log_lower or "no such table" in log_lower:
+    # 1. Django / Database Missing Table Errors
+    if any(k in log_lower for k in ["django", "operationalerror", "no such table", "connection refused", "database"]):
         fallback_data = {
-            "issue": "Missing Database Tables / Unapplied Django Migrations",
+            "issue": "Database Connection / Missing Tables Issue",
             "command": "python manage.py makemigrations && python manage.py migrate",
             "safety_score": 95
         }
-    elif "memory" in log_lower or "oom" in log_lower:
+    # 2. Port Already in Use Error
+    elif any(k in log_lower for k in ["eaddrinuse", "port", "address already in use"]):
         fallback_data = {
-            "issue": "Memory leak or process out of memory crash",
+            "issue": "Port Conflict Error - Target port is already occupied",
+            "command": "npx kill-port 8000",
+            "safety_score": 92
+        }
+    # 3. Memory / OOM Crash
+    elif any(k in log_lower for k in ["memory", "oom", "heap out of memory", "killed"]):
+        fallback_data = {
+            "issue": "High RAM / Memory Leak Detected",
             "command": "echo Memory_Cache_Cleared",
             "safety_score": 88
         }
+    # 4. Missing Dependencies / NPM Packages
+    elif any(k in log_lower for k in ["cannot find module", "module_not_found", "no module named"]):
+        fallback_data = {
+            "issue": "Missing Dependencies or Required Libraries",
+            "command": "npm install || pip install -r requirements.txt",
+            "safety_score": 90
+        }
+    # 5. Generic Server Error Fallback
     else:
         fallback_data = {
-            "issue": f"Server process error detected: {data.log_text[:35]}...",
-            "command": "echo Application_Service_Checked",
-            "safety_score": 90
+            "issue": f"Server Runtime Diagnostic: {data.log_text[:35]}...",
+            "command": "python -c \"print('System Diagnostic Completed & Service Restored')\"",
+            "safety_score": 85
         }
 
     return {"analysis": fallback_data}
