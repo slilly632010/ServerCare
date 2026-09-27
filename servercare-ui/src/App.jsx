@@ -97,30 +97,30 @@ function App() {
     setExecuting(true);
     setExecutionStep(1); // Step 1: Connecting to Server Shell
 
-    setTimeout(() => setExecutionStep(2), 1000); // Step 2: Injecting Fix Command into PID Process
+    setTimeout(() => setExecutionStep(2), 800); 
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/execute-fix`, {
-        method: "POST",
+      const response = await axios.post(`${BACKEND_URL}/api/execute-fix`, {
+        command: cmd
+      }, {
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: cmd })
+        timeout: 15000 // 15 seconds wait time for Render cold start
       });
-      const result = await response.json();
 
-      setTimeout(() => {
-        setExecutionStep(3); // Step 3: Execution Complete
-        setProcessDetails(result);
-        setIsFixed(true);
-        setExecuting(false);
-        setLogInput('');
-      }, 1800);
+      const result = response.data;
+
+      setExecutionStep(3); // Step 3: Execution Complete
+      setProcessDetails(result);
+      setIsFixed(true);
+      setExecuting(false);
+      setLogInput('');
 
     } catch (err) {
-      alert("Error connecting to backend execution terminal!");
+      console.error("Execution error details:", err);
+      alert(`Backend Execution Failed: ${err.message || "Server unreachable"}. Please check Render logs or try again after 10 seconds.`);
       setExecuting(false);
     }
   };
-
   return (
     <div style={{ padding: '30px', fontFamily: 'Segoe UI, sans-serif', backgroundColor: '#0f172a', color: '#fff', minHeight: '100vh' }}>
       <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#38bdf8' }}>
